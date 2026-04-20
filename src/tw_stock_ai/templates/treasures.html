@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Value + Growth + Catalyst</p>
+    <h2>寶藏股</h2>
+    <p class="lede">寶藏股分數來自價值、成長、品質、估值與催化因子。若真實資料不足，欄位會保持 unavailable，不會補造結論。</p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <p class="section-kicker">Treasure Ranking</p>
+      <h3>最新寶藏股評分</h3>
+    </div>
+    <div class="muted">{% if run %}來源 run：{{ run.as_of_date }}{% else %}尚無 run{% endif %}</div>
+  </div>
+  {% if treasure_rows %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>股票代號</th>
+          <th>股票名稱</th>
+          <th>總分</th>
+          <th>成長</th>
+          <th>品質</th>
+          <th>估值</th>
+          <th>催化</th>
+          <th>Summary</th>
+          <th>Risks</th>
+          <th>最後更新</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in treasure_rows %}
+        <tr>
+          <td class="mono">{{ row.symbol }}</td>
+          <td>{{ row.symbol_name }}</td>
+          <td>{{ row.value_score }}</td>
+          <td>{{ row.growth_score }}</td>
+          <td>{{ row.quality_score }}</td>
+          <td>{{ row.valuation_score }}</td>
+          <td>{{ row.catalyst_score }}</td>
+          <td>{{ row.summary }}</td>
+          <td>{{ row.risks }}</td>
+          <td class="mono muted">{{ row.updated_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">目前沒有可顯示的寶藏股評分，通常代表基本面、營收或新聞資料仍未完整。</div>
+  {% endif %}
+</section>
+{% endblock %}
