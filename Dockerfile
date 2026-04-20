@@ -3,6 +3,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/src
+ENV PORT=8080
 
 WORKDIR /app
 
@@ -37,6 +38,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
     fi && \
     python -c "import tw_stock_ai; import tw_stock_ai.main; import tw_stock_ai.adapters; import tw_stock_ai.worker"
 
-EXPOSE 8000
+EXPOSE 8080
 
-CMD ["sh", "-c", "python -m uvicorn tw_stock_ai.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "python -m uvicorn tw_stock_ai.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
