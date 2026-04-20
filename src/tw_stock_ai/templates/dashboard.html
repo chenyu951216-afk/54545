@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | TW Stock AI{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Enterprise-ready architecture</p>
+    <h2>台股短線選股與持股追蹤總覽</h2>
+    <p class="lede">沒有真實資料就不下結論。所有分數、證據、來源時間與抓取時間都應可追溯。</p>
+  </div>
+  <button class="primary" onclick="runScreening()">立即執行篩選</button>
+</section>
+
+<section class="cards">
+  <article class="card">
+    <p class="card-label">價格資料筆數</p>
+    <h3>{{ price_count }}</h3>
+  </article>
+  <article class="card">
+    <p class="card-label">持股數量</p>
+    <h3>{{ holding_count }}</h3>
+  </article>
+  <article class="card">
+    <p class="card-label">最新篩選狀態</p>
+    <h3>{% if latest_run %}{{ latest_run.status }}{% else %}not_started{% endif %}</h3>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>系統健康度</h3>
+    <button onclick="loadHealth()">重新讀取</button>
+  </div>
+  <pre id="health-box">載入中...</pre>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>最新篩選摘要</h3>
+    <button onclick="loadLatestScreening()">重新讀取</button>
+  </div>
+  <pre id="screening-box">載入中...</pre>
+</section>
+
+<script>
+async function loadHealth() {
+  const response = await fetch('/api/health');
+  const data = await response.json();
+  document.getElementById('health-box').textContent = JSON.stringify(data, null, 2);
+}
+
+async function loadLatestScreening() {
+  const response = await fetch('/api/screenings/latest');
+  const data = await response.json();
+  document.getElementById('screening-box').textContent = JSON.stringify(data, null, 2);
+}
+
+async function runScreening() {
+  const response = await fetch('/api/screenings/run', { method: 'POST' });
+  const data = await response.json();
+  document.getElementById('screening-box').textContent = JSON.stringify(data, null, 2);
+}
+
+loadHealth();
+loadLatestScreening();
+</script>
+{% endblock %}
