@@ -397,8 +397,10 @@ def dispatch_prepared_daily_report(
     if report is None or report.status == "failed":
         report = prepare_daily_screening_and_analysis(session, trigger_source=f"{trigger_source}:fallback_prepare")
 
+    enforce_dispatch_rate_limit = not trigger_source.startswith("ui_")
+
     try:
-        if flags.is_enabled("cost_guardrails", session):
+        if flags.is_enabled("cost_guardrails", session) and enforce_dispatch_rate_limit:
             rate_limits.enforce(
                 session,
                 operation="discord_report_run",
@@ -418,31 +420,34 @@ def dispatch_prepared_daily_report(
             report.status = "skipped"
             report.error_detail = "discord_notifications_disabled_or_budget_blocked"
 
-        rate_limits.record(
-            session,
-            operation="discord_report_run",
-            status=report.status,
-            metadata={"trigger_source": trigger_source, "qualified_count": report.qualified_count},
-        )
+        if enforce_dispatch_rate_limit:
+            rate_limits.record(
+                session,
+                operation="discord_report_run",
+                status=report.status,
+                metadata={"trigger_source": trigger_source, "qualified_count": report.qualified_count},
+            )
     except RateLimitExceededError as exc:
         report.status = "skipped"
         report.error_detail = str(exc)
-        rate_limits.record(
-            session,
-            operation="discord_report_run",
-            status="rate_limited",
-            metadata={"trigger_source": trigger_source, "error": str(exc)},
-        )
+        if enforce_dispatch_rate_limit:
+            rate_limits.record(
+                session,
+                operation="discord_report_run",
+                status="rate_limited",
+                metadata={"trigger_source": trigger_source, "error": str(exc)},
+            )
     except Exception as exc:  # noqa: BLE001
         logger.exception("daily_report_dispatch_failed trigger_source=%s error=%s", trigger_source, exc)
         report.status = "failed"
         report.error_detail = str(exc)
-        rate_limits.record(
-            session,
-            operation="discord_report_run",
-            status="failed",
-            metadata={"trigger_source": trigger_source, "error": str(exc)},
-        )
+        if enforce_dispatch_rate_limit:
+            rate_limits.record(
+                session,
+                operation="discord_report_run",
+                status="failed",
+                metadata={"trigger_source": trigger_source, "error": str(exc)},
+            )
 
     session.commit()
     session.refresh(report)
