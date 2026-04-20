@@ -16,3 +16,10 @@ data/logs/
 src/*.egg-info/
 src/**/*.egg-info/
 pytest-cache-files-*/
+local_artifacts/
+_archive_sim*/
+_embedded_sim*/
+_zeabur_archive_bundle*/
+_zeabur_embedded_bundle*/
+_zeabur_upload_bundle/
+_zeabur_wheel_bundle*/
