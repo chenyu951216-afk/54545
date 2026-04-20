@@ -26,6 +26,42 @@ from tw_stock_ai.services.screener import run_screening
 logger = get_logger("tw_stock_ai.jobs")
 
 
+def _normalize_daily_report_trigger_source(trigger_source: str) -> str:
+    normalized = (trigger_source or "").strip() or "manual"
+    segment_replacements = {
+        "worker_startup_bootstrap": "worker_boot",
+        "scheduler_prewarm": "sched_prewarm",
+        "scheduler_push": "sched_push",
+        "manual_api": "api_manual",
+        "ui_manual_dispatch": "ui_dispatch",
+        "ui_manual": "ui_manual",
+        "fallback_prepare": "fb_prepare",
+        "prepare": "prep",
+        "dispatch": "push",
+    }
+
+    normalized = ":".join(
+        segment_replacements.get(part, part)
+        for part in normalized.replace("-", "_").split(":")
+    )
+
+    if len(normalized) <= 30:
+        return normalized
+
+    compact_parts: list[str] = []
+    for part in normalized.replace("-", "_").split(":"):
+        tokens = [token for token in part.split("_") if token]
+        if not tokens:
+            continue
+        compact_parts.append("_".join(token[:6] for token in tokens))
+
+    compacted = ":".join(compact_parts) or "manual"
+    if len(compacted) <= 30:
+        return compacted
+
+    return compacted[:30]
+
+
 def build_scheduler() -> BackgroundScheduler:
     with SessionLocal() as session:
         settings = build_effective_settings(session)
@@ -163,6 +199,7 @@ def prepare_daily_screening_and_analysis(
     trigger_source: str,
     force_refresh: bool = False,
 ) -> DailyReportRun:
+    report_trigger_source = _normalize_daily_report_trigger_source(trigger_source)
     settings = build_effective_settings(session)
     flags = FeatureFlagService(settings)
     generator = DailyReportGenerator(
@@ -173,7 +210,7 @@ def prepare_daily_screening_and_analysis(
     report = DailyReportRun(
         report_kind="discord_top_picks",
         report_date=date.today(),
-        trigger_source=trigger_source,
+        trigger_source=report_trigger_source,
         status="running",
         qualified_count=0,
         top_n=settings.discord_daily_report_top_n,
@@ -237,13 +274,19 @@ def prepare_daily_screening_and_analysis(
             report_date=screening_run.as_of_date,
         )
         logger.info(
-            "daily_report_prepared report_run_id=%s screening_run_id=%s trigger_source=%s",
+            "daily_report_prepared report_run_id=%s screening_run_id=%s trigger_source=%s raw_trigger_source=%s",
             report.id,
             screening_run.id,
+            report_trigger_source,
             trigger_source,
         )
     except Exception as exc:  # noqa: BLE001
-        logger.exception("daily_screening_prepare_failed trigger_source=%s error=%s", trigger_source, exc)
+        logger.exception(
+            "daily_screening_prepare_failed trigger_source=%s raw_trigger_source=%s error=%s",
+            report_trigger_source,
+            trigger_source,
+            exc,
+        )
         report.status = "failed"
         report.error_detail = str(exc)
         report.rendered_content = (
