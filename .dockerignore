@@ -12,6 +12,13 @@ __pycache__
 dist
 build
 pytest-cache-files-*
+local_artifacts
+_archive_sim*
+_embedded_sim*
+_zeabur_archive_bundle*
+_zeabur_embedded_bundle*
+_zeabur_upload_bundle
+_zeabur_wheel_bundle*
 data/*.db
 data/*.sqlite3
 data/logs
