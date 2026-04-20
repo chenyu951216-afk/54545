@@ -147,10 +147,15 @@ class DiscordWebhookSender:
 
     def _post_payload(self, payload: dict) -> tuple[int, str]:
         encoded_payload = json.dumps(payload).encode("utf-8")
+        webhook_url = self._normalize_webhook_url(self.settings.discord_webhook_url)
         req = request.Request(
-            self.settings.discord_webhook_url,
+            webhook_url,
             data=encoded_payload,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/plain, */*",
+                "User-Agent": "tw-stock-ai/1.0 (+discord-webhook-client)",
+            },
             method="POST",
         )
         with request.urlopen(req, timeout=self.settings.discord_timeout_seconds) as response:  # noqa: S310
@@ -191,6 +196,11 @@ class DiscordWebhookSender:
         if len(webhook_url) <= 16:
             return webhook_url
         return f"{webhook_url[:8]}...{webhook_url[-8:]}"
+
+    def _normalize_webhook_url(self, webhook_url: str | None) -> str:
+        if not webhook_url:
+            raise ValueError("discord_webhook_url_missing")
+        return webhook_url.replace("https://discordapp.com/", "https://discord.com/")
 
     def _record_usage(self, session: Session, *, status: str, report_run: DailyReportRun) -> None:
         self.usage_tracker.record(
