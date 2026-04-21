@@ -28,6 +28,28 @@ from tw_stock_ai.services.screener import run_screening
 logger = get_logger("tw_stock_ai.jobs")
 
 
+def _scheduler_now(
+    settings=None,
+    *,
+    now: datetime | None = None,
+) -> datetime:
+    effective_settings = settings or get_settings()
+    timezone = ZoneInfo(effective_settings.scheduler_timezone)
+    if now is None:
+        return datetime.now(timezone)
+    if now.tzinfo is None:
+        return now.replace(tzinfo=timezone)
+    return now.astimezone(timezone)
+
+
+def _scheduler_today(
+    settings=None,
+    *,
+    now: datetime | None = None,
+) -> date:
+    return _scheduler_now(settings, now=now).date()
+
+
 def _normalize_daily_report_trigger_source(trigger_source: str) -> str:
     normalized = (trigger_source or "").strip() or "manual"
     segment_replacements = {
@@ -68,6 +90,8 @@ def build_scheduler() -> BackgroundScheduler:
     with SessionLocal() as session:
         settings = build_effective_settings(session)
     scheduler = BackgroundScheduler(timezone=settings.scheduler_timezone)
+    daily_misfire_grace_seconds = 6 * 60 * 60
+    news_misfire_grace_seconds = max(settings.news_poll_interval_minutes * 2 * 60, 15 * 60)
     logger.info(
         "scheduler_configured timezone=%s prewarm=%02d:%02d push=%02d:%02d weekdays=%s",
         settings.scheduler_timezone,
@@ -85,6 +109,8 @@ def build_scheduler() -> BackgroundScheduler:
         minute=settings.prewarm_minute,
         id="daily-market-prewarm",
         replace_existing=True,
+        coalesce=True,
+        misfire_grace_time=daily_misfire_grace_seconds,
     )
     scheduler.add_job(
         func=run_daily_report_push_job,
@@ -94,6 +120,8 @@ def build_scheduler() -> BackgroundScheduler:
         minute=settings.screening_minute,
         id="daily-screening-discord-push",
         replace_existing=True,
+        coalesce=True,
+        misfire_grace_time=daily_misfire_grace_seconds,
     )
     if settings.news_polling_enabled:
         scheduler.add_job(
@@ -102,6 +130,8 @@ def build_scheduler() -> BackgroundScheduler:
             minutes=settings.news_poll_interval_minutes,
             id="intraday-news-poll",
             replace_existing=True,
+            coalesce=True,
+            misfire_grace_time=news_misfire_grace_seconds,
         )
     return scheduler
 
@@ -137,10 +167,11 @@ def maybe_run_startup_bootstrap() -> DailyReportRun | None:
             logger.info("startup_bootstrap_skipped reason=disabled")
             return None
 
-        latest_report = get_latest_daily_report(session, report_date=date.today())
+        today = _scheduler_today(settings)
+        latest_report = get_latest_daily_report(session, report_date=today)
         latest_screening = session.scalar(
             select(ScreeningRun)
-            .where(ScreeningRun.as_of_date == date.today())
+            .where(ScreeningRun.as_of_date == today)
             .order_by(desc(ScreeningRun.created_at), desc(ScreeningRun.id))
         )
         if latest_report is not None and latest_screening is not None:
@@ -160,6 +191,11 @@ def maybe_run_startup_bootstrap() -> DailyReportRun | None:
             trigger_source="worker_startup_bootstrap",
             force_refresh=settings.startup_bootstrap_force_refresh,
         )
+
+
+def maybe_run_startup_catchup(*, now: datetime | None = None) -> dict:
+    with SessionLocal() as session:
+        return run_startup_catchup(session, now=now)
 
 
 def refresh_market_data(
@@ -267,6 +303,62 @@ def refresh_intraday_news(
     return refresh_run
 
 
+def run_startup_catchup(
+    session: Session,
+    *,
+    now: datetime | None = None,
+) -> dict:
+    settings = build_effective_settings(session)
+    current = _scheduler_now(settings, now=now)
+    today = current.date()
+    prewarm_time = current.replace(
+        hour=settings.prewarm_hour,
+        minute=settings.prewarm_minute,
+        second=0,
+        microsecond=0,
+    )
+    push_time = current.replace(
+        hour=settings.screening_hour,
+        minute=settings.screening_minute,
+        second=0,
+        microsecond=0,
+    )
+
+    latest_report = get_latest_daily_report(session, report_date=today)
+    news_status = "skipped"
+    dispatch_status = "skipped"
+    dispatch_report_id: int | None = latest_report.id if latest_report is not None else None
+
+    if current >= push_time and (latest_report is None or latest_report.status not in {"sent", "skipped"}):
+        dispatched = dispatch_prepared_daily_report(
+            session,
+            trigger_source="startup_catchup_push",
+            report_run=latest_report,
+        )
+        latest_report = dispatched
+        dispatch_status = dispatched.status
+        dispatch_report_id = dispatched.id
+
+    if settings.news_polling_enabled and current >= prewarm_time:
+        refresh_run = refresh_intraday_news(
+            session,
+            trigger_source="startup_catchup_news",
+            force_refresh=True,
+        )
+        if refresh_run is not None:
+            news_status = refresh_run.status
+
+    summary = {
+        "today": today.isoformat(),
+        "now": current.isoformat(),
+        "dispatch_status": dispatch_status,
+        "dispatch_report_id": dispatch_report_id,
+        "news_status": news_status,
+    }
+    logger.info("startup_catchup_completed summary=%s", summary)
+    return summary
+
+
 def prepare_daily_screening_and_analysis(
     session: Session,
     *,
@@ -283,7 +375,7 @@ def prepare_daily_screening_and_analysis(
     )
     report = DailyReportRun(
         report_kind="discord_top_picks",
-        report_date=date.today(),
+        report_date=_scheduler_today(settings),
         trigger_source=report_trigger_source,
         status="running",
         qualified_count=0,
@@ -393,7 +485,7 @@ def dispatch_prepared_daily_report(
     notifier = build_default_notifier(settings)
     cost_control = CostControlService(settings)
 
-    report = report_run or get_latest_daily_report(session, report_date=date.today())
+    report = report_run or get_latest_daily_report(session, report_date=_scheduler_today(settings))
     if report is None or report.status == "failed":
         report = prepare_daily_screening_and_analysis(session, trigger_source=f"{trigger_source}:fallback_prepare")
 
