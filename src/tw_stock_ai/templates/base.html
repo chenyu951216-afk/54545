@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}{{ page_title or "TW Stock AI" }} | TW Stock AI{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-kicker">Taiwan Market Intelligence</span>
+        <h1>TW Stock AI</h1>
+        <p class="brand-copy">短線選股、寶藏股、持股監控、資料刷新與 Discord 推播的統一操作面板。</p>
+      </div>
+      <nav class="nav">
+        <a class="{% if active_page == 'picks' %}active{% endif %}" href="/picks">今日選股</a>
+        <a class="{% if active_page == 'treasures' %}active{% endif %}" href="/treasures">寶藏股</a>
+        <a class="{% if active_page == 'holdings' %}active{% endif %}" href="/holdings">我的持股</a>
+        <a class="{% if active_page == 'settings' %}active{% endif %}" href="/settings">設定</a>
+        <a class="{% if active_page == 'system' %}active{% endif %}" href="/system">系統狀態</a>
+      </nav>
+    </aside>
+    <main class="content">
+      {% if flash %}
+      <div class="flash">{{ flash }}</div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

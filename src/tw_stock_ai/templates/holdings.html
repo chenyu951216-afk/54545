@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Portfolio Monitor</p>
+    <h2>我的持股</h2>
+    <p class="lede">你可以手動新增持股，系統會根據真實資料刷新監控結果。若缺少價格或新聞證據，分析結果會保留 evidence insufficient。</p>
+  </div>
+  <div class="hero-actions">
+    <form class="button-form" method="post" action="/holdings/refresh">
+      <button class="primary" type="submit">重新監控全部持股</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <p class="section-kicker">Add Position</p>
+      <h3>新增持股</h3>
+    </div>
+  </div>
+  <form method="post" action="/holdings/add" class="form-grid">
+    <div class="field">
+      <label>股票代號</label>
+      <input name="symbol" required />
+    </div>
+    <div class="field">
+      <label>股票名稱</label>
+      <input name="symbol_name" />
+    </div>
+    <div class="field">
+      <label>持股數量</label>
+      <input name="quantity" type="number" min="1" required />
+    </div>
+    <div class="field">
+      <label>平均成本</label>
+      <input name="average_cost" type="number" step="0.01" min="0.01" required />
+    </div>
+    <div class="field">
+      <label>建倉日期</label>
+      <input name="opened_date" type="date" />
+    </div>
+    <div class="field">
+      <label>自訂停損</label>
+      <input name="custom_stop_loss" type="number" step="0.01" />
+    </div>
+    <div class="field">
+      <label>自訂目標價</label>
+      <input name="custom_target_price" type="number" step="0.01" />
+    </div>
+    <div class="field">
+      <label>備註</label>
+      <input name="note" />
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <button class="primary" type="submit">新增持股</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <p class="section-kicker">Position Monitor</p>
+      <h3>持股監控結果</h3>
+    </div>
+  </div>
+  {% if holding_rows %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>股票代號</th>
+          <th>平均成本</th>
+          <th>最新收盤</th>
+          <th>報酬率</th>
+          <th>趨勢狀態</th>
+          <th>警示狀態</th>
+          <th>建議動作</th>
+          <th>最新分析</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in holding_rows %}
+        <tr>
+          <td class="stack">
+            <span class="mono">{{ row.symbol }}</span>
+            <span class="muted">{{ row.symbol_name }}</span>
+          </td>
+          <td>{{ row.average_cost }}</td>
+          <td>{{ row.latest_close }}</td>
+          <td>{{ row.return_pct }}</td>
+          <td><span class="badge {{ row.trend_status }}">{{ row.trend_status }}</span></td>
+          <td><span class="badge {{ row.alert_status }}">{{ row.alert_status }}</span></td>
+          <td><span class="badge {{ row.action }}">{{ row.action }}</span></td>
+          <td>{{ row.latest_analysis }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">目前還沒有持股資料。</div>
+  {% endif %}
+</section>
+{% endblock %}
