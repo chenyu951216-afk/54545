@@ -5,7 +5,7 @@ import time
 
 from tw_stock_ai.config import get_settings
 from tw_stock_ai.db import init_db
-from tw_stock_ai.services.jobs import build_scheduler, maybe_run_startup_bootstrap
+from tw_stock_ai.services.jobs import build_scheduler, maybe_run_startup_bootstrap, maybe_run_startup_catchup
 from tw_stock_ai.services.logging_config import configure_logging, get_logger
 
 logger = get_logger("tw_stock_ai.worker")
@@ -17,6 +17,7 @@ def main() -> None:
     init_db()
 
     maybe_run_startup_bootstrap()
+    catchup_summary = maybe_run_startup_catchup()
 
     scheduler = build_scheduler()
     scheduler.start()
@@ -30,6 +31,7 @@ def main() -> None:
             "screening_weekdays": settings.screening_weekdays,
             "news_polling_enabled": settings.news_polling_enabled,
             "news_poll_interval_minutes": settings.news_poll_interval_minutes,
+            "startup_catchup": catchup_summary,
         },
     )
 
